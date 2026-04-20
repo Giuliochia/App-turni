@@ -203,6 +203,27 @@ html{color-scheme:dark}
 .toggle.on{background:var(--blue);border-color:var(--blue)}
 .toggle::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:var(--txt3);transition:transform .2s,background .2s}
 .toggle.on::after{transform:translateX(19px);background:#fff}
+
+/* TIPO GIORNO */
+.day-type-row{display:flex;gap:8px;flex-wrap:wrap}
+.dtype-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 8px;background:var(--s2);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .18s;flex:1;min-width:60px;font-family:'Outfit',sans-serif}
+.dtype-btn:hover{border-color:var(--b2)}
+.dtype-btn.on{border-color:currentColor}
+.dtype-icon{font-size:20px;line-height:1}
+.dtype-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.orario-wrap{transition:all .3s}
+
+/* BANNER PROMEMORIA */
+.reminder-banner{margin:8px 12px 0;background:rgba(45,139,255,.1);border:1px solid rgba(45,139,255,.3);border-radius:14px;padding:14px 16px;display:none;flex-direction:column;gap:6px;animation:sIn .3s ease;flex-shrink:0}
+.reminder-banner.show{display:flex}
+.reminder-head{display:flex;align-items:center;justify-content:space-between}
+.reminder-title{font-size:13px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:6px}
+.reminder-close{background:none;border:none;color:var(--txt3);font-size:18px;cursor:pointer;line-height:1;padding:0}
+.reminder-shift{display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(45,139,255,.08);border-radius:10px}
+.reminder-sig{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;flex-shrink:0}
+.reminder-info{flex:1}
+.reminder-txt{font-size:13px;font-weight:600;color:var(--txt)}
+.reminder-sub{font-size:11px;color:var(--txt2);margin-top:1px}
 </style>
 </head>
 <body style="background:#080c14;background-color:#080c14">
@@ -269,6 +290,13 @@ html{color-scheme:dark}
       <div class="dow-cell">S</div><div class="dow-cell">D</div>
     </div>
     <div class="mgrid" id="mgrid"></div>
+    <div class="reminder-banner" id="reminder-banner">
+      <div class="reminder-head">
+        <div class="reminder-title">⏰ Promemoria turno</div>
+        <button class="reminder-close" onclick="closeReminder()">×</button>
+      </div>
+      <div id="reminder-body"></div>
+    </div>
     <div class="dpanel" id="dpanel"></div>
   </div>
 
@@ -279,6 +307,26 @@ html{color-scheme:dark}
       <div style="font-size:26px">🗓️</div>
     </div>
     <div class="add-wrap">
+      <!-- TIPO GIORNO -->
+      <div class="card">
+        <div class="card-title">📋 Tipo giorno</div>
+        <div class="day-type-row" id="day-type-row">
+          <button class="dtype-btn on" style="color:var(--blue)" onclick="setDayType('turno',this)">
+            <span class="dtype-icon">🏥</span><span class="dtype-lbl" style="color:var(--blue)">Turno</span>
+          </button>
+          <button class="dtype-btn" style="color:var(--ok)" onclick="setDayType('riposo',this)">
+            <span class="dtype-icon">🛋️</span><span class="dtype-lbl" style="color:var(--ok)">Riposo</span>
+          </button>
+          <button class="dtype-btn" style="color:#ffb830" onclick="setDayType('ferie',this)">
+            <span class="dtype-icon">🏖️</span><span class="dtype-lbl" style="color:#ffb830">Ferie</span>
+          </button>
+          <button class="dtype-btn" style="color:#a78bfa" onclick="setDayType('malattia',this)">
+            <span class="dtype-icon">🤒</span><span class="dtype-lbl" style="color:#a78bfa">Malattia</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SIGLA + COLORE -->
       <div class="card">
         <div class="card-title">🏷️ Sigla e colore</div>
         <div class="sigla-row">
@@ -291,6 +339,8 @@ html{color-scheme:dark}
           </div>
         </div>
       </div>
+
+      <!-- PERIODO -->
       <div class="card">
         <div class="card-title">📅 Periodo</div>
         <div class="frow">
@@ -299,7 +349,9 @@ html{color-scheme:dark}
         </div>
         <div id="days-chip" class="days-chip" style="display:none"></div>
       </div>
-      <div class="card">
+
+      <!-- ORARIO (nascosto per riposo/ferie) -->
+      <div class="card orario-wrap" id="orario-card">
         <div class="card-title">⏰ Orario</div>
         <div class="presets" id="presets">
           <button class="pbtn" onclick="applyPreset('06:00','14:00',this)">06–14</button>
@@ -316,10 +368,14 @@ html{color-scheme:dark}
         </div>
         <div class="dur-chip" id="dur-chip">⏱ 8h</div>
       </div>
+
+      <!-- NOTE -->
       <div class="card">
         <div class="card-title">📝 Note (opzionale)</div>
         <div class="fg"><input class="finput" type="text" id="f-note" placeholder="es. Pronto soccorso, Reperibilità…" oninput="updPreview()"></div>
       </div>
+
+      <!-- ANTEPRIMA -->
       <div class="preview-wrap">
         <div class="prev-lbl">Anteprima</div>
         <div class="prev-row">
@@ -476,6 +532,7 @@ async function onLogin(user){
   await loadData();
   showApp();
   subscribeRealtime();
+  checkReminder();
 }
 
 function showAuth(){
@@ -693,8 +750,42 @@ async function delShift(id){
 }
 
 /* ══════════════════════════════
-   CREA TURNO
+   TIPO GIORNO
 ══════════════════════════════ */
+var DAY_TYPE = 'turno';
+var DAY_TYPE_MAP = {
+  'turno':    {sig:'',    col:0,  icon:'🏥', label:'Turno',    hasTime:true},
+  'riposo':   {sig:'R',   col:3,  icon:'🛋️', label:'Riposo',   hasTime:false},
+  'ferie':    {sig:'F',   col:4,  icon:'🏖️', label:'Ferie',    hasTime:false},
+  'malattia': {sig:'MAL', col:2,  icon:'🤒', label:'Malattia', hasTime:false}
+};
+
+function setDayType(type, btn){
+  DAY_TYPE = type;
+  var btns = document.querySelectorAll('.dtype-btn');
+  for(var i=0;i<btns.length;i++) btns[i].classList.remove('on');
+  btn.classList.add('on');
+
+  var cfg = DAY_TYPE_MAP[type];
+  var orario = document.getElementById('orario-card');
+  orario.style.display = cfg.hasTime ? 'block' : 'none';
+
+  // Pre-compila sigla per tipi speciali
+  if(!cfg.hasTime){
+    document.getElementById('f-sigla').value = cfg.sig;
+    pickCI = cfg.col;
+    var dots = document.querySelectorAll('.cdot');
+    for(var i=0;i<dots.length;i++) dots[i].classList.remove('sel');
+    if(dots[cfg.col]) dots[cfg.col].classList.add('sel');
+    // Anteprima: niente orari
+    document.getElementById('prev-time').textContent = cfg.icon+' '+cfg.label;
+    document.getElementById('prev-dur').textContent = '';
+  } else {
+    document.getElementById('f-sigla').value = '';
+    updDurChip();
+  }
+  updSiglaBox(); updPreview();
+}
 function buildColorRow(){
   var row=document.getElementById('color-row'); row.innerHTML='';
   for(var i=0;i<PALETTE.length;i++){
@@ -714,10 +805,18 @@ function buildColorRow(){
   }
 }
 
+/* ══════════════════════════════
+   CREA TURNO
+══════════════════════════════ */
 function initAdd(){
   var todayStr=toDS(new Date());
   if(!document.getElementById('f-ds').value) document.getElementById('f-ds').value=todayStr;
   if(!document.getElementById('f-de').value) document.getElementById('f-de').value=todayStr;
+  // Reset tipo giorno a "turno"
+  DAY_TYPE='turno';
+  var btns=document.querySelectorAll('.dtype-btn');
+  if(btns[0]){ for(var i=0;i<btns.length;i++) btns[i].classList.remove('on'); btns[0].classList.add('on'); }
+  document.getElementById('orario-card').style.display='block';
   updSiglaBox(); updDurChip(); onDateInput(); updPreview();
 }
 
@@ -783,44 +882,84 @@ async function submitShift(){
   if(!currentUser){ showToast('Non autenticato','err'); return; }
   var ds1=document.getElementById('f-ds').value;
   var de1=document.getElementById('f-de').value||ds1;
-  var ts=document.getElementById('f-ts').value;
-  var te=document.getElementById('f-te').value;
   var sig=document.getElementById('f-sigla').value.trim().toUpperCase();
   var note=document.getElementById('f-note').value.trim();
-  if(!ds1||!ts||!te){ showToast('Compila periodo e orari','err'); return; }
+  var cfg=DAY_TYPE_MAP[DAY_TYPE];
+  var ts='00:00', te='00:00';
+  if(cfg.hasTime){
+    ts=document.getElementById('f-ts').value;
+    te=document.getElementById('f-te').value;
+    if(!ts||!te){ showToast('Compila gli orari','err'); return; }
+  }
+  if(!ds1){ showToast('Compila la data','err'); return; }
   if(!sig){ showToast('Inserisci la sigla','err'); return; }
   if(new Date(de1)<new Date(ds1)){ showToast('Data fine errata','err'); return; }
 
   var btn=document.getElementById('btn-save');
   btn.disabled=true; btn.textContent='Salvataggio…';
 
-  var rows=[];
-  var cur=new Date(ds1), last=new Date(de1);
+  var rows=[]; var cur=new Date(ds1), last=new Date(de1);
   while(cur<=last){
-    rows.push({user_id:currentUser.id, date:toDS(cur), start_time:ts, end_time:te, sigla:sig, color_idx:pickCI, note:note||null});
+    rows.push({user_id:currentUser.id,date:toDS(cur),start_time:ts,end_time:te,sigla:sig,color_idx:pickCI,note:note||(cfg.hasTime?null:cfg.label)});
     cur=addDays(cur,1);
   }
 
   var res=await sb.from('shifts').insert(rows).select();
   btn.disabled=false; btn.textContent='✚ Crea turno';
-
   if(res.error){ showToast('Errore: '+res.error.message,'err'); return; }
-
-  // Aggiungi localmente
   for(var i=0;i<res.data.length;i++) allShifts.push(res.data[i]);
 
+  // Reset
   document.getElementById('f-sigla').value='';
   document.getElementById('f-note').value='';
   document.getElementById('f-ds').value='';
   document.getElementById('f-de').value='';
-  var btns=document.querySelectorAll('.pbtn');
-  for(var i=0;i<btns.length;i++) btns[i].classList.remove('on');
+  var pbtns=document.querySelectorAll('.pbtn');
+  for(var i=0;i<pbtns.length;i++) pbtns[i].classList.remove('on');
+  DAY_TYPE='turno';
+  var dtbtns=document.querySelectorAll('.dtype-btn');
+  for(var i=0;i<dtbtns.length;i++) dtbtns[i].classList.remove('on');
+  if(dtbtns[0]) dtbtns[0].classList.add('on');
+  document.getElementById('orario-card').style.display='block';
   updSiglaBox(); updPreview();
 
-  showToast(rows.length>1?rows.length+' turni creati ✓':'Turno creato ✓','ok');
+  showToast(rows.length>1?rows.length+' giorni salvati ✓':'Salvato ✓','ok');
   calMonth=new Date(new Date(ds1).getFullYear(),new Date(ds1).getMonth(),1);
   selDay=new Date(ds1);
   goTo('cal');
+}
+
+/* ══════════════════════════════
+   PROMEMORIA
+══════════════════════════════ */
+function checkReminder(){
+  if(!currentUser) return;
+  var tomorrow=addDays(new Date(),1);
+  var tStr=toDS(tomorrow);
+  var myShifts=allShifts.filter(function(s){ return s.user_id===currentUser.id&&s.date===tStr; });
+  var banner=document.getElementById('reminder-banner');
+  if(!myShifts.length){ banner.classList.remove('show'); return; }
+
+  var di=tomorrow.getDay()===0?6:tomorrow.getDay()-1;
+  var html='';
+  myShifts.forEach(function(s){
+    var col=PALETTE[s.color_idx!==null&&s.color_idx!==undefined?s.color_idx:0];
+    var ts=s.start_time?s.start_time.slice(0,5):'';
+    var te=s.end_time?s.end_time.slice(0,5):'';
+    var timeStr=(ts==='00:00'&&te==='00:00')?(s.note||s.sigla||''):ts+' → '+te;
+    html+='<div class="reminder-shift">'
+      +'<div class="reminder-sig" style="background:'+col+'22;color:'+col+'">'+(s.sigla||'?')+'</div>'
+      +'<div class="reminder-info">'
+      +'<div class="reminder-txt">Domani '+DAYS_IT[di]+' '+tomorrow.getDate()+' '+MONTHS[tomorrow.getMonth()]+'</div>'
+      +'<div class="reminder-sub">'+timeStr+(s.note&&timeStr!==s.note?' · '+s.note:'')+'</div>'
+      +'</div></div>';
+  });
+  document.getElementById('reminder-body').innerHTML=html;
+  banner.classList.add('show');
+}
+
+function closeReminder(){
+  document.getElementById('reminder-banner').classList.remove('show');
 }
 
 /* ══════════════════════════════
