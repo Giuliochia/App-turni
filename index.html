@@ -1009,7 +1009,7 @@ async function submitShift(){
   // Salva come utilizzo rapido (solo turni con orario)
   addToQuick(sig, ts, te, pickCI, DAY_TYPE);
 
-  // Reset
+  // Reset form
   document.getElementById('f-sigla').value='';
   document.getElementById('f-note').value='';
   document.getElementById('f-ds').value='';
@@ -1023,10 +1023,15 @@ async function submitShift(){
   document.getElementById('orario-card').style.display='block';
   updSiglaBox(); updPreview();
 
+  // Aggiorna subito i rapidi visibili nel form
+  renderQuickTemplates();
+
   showToast(rows.length>1?rows.length+' giorni salvati ✓':'Salvato ✓','ok');
   calMonth=new Date(new Date(ds1).getFullYear(),new Date(ds1).getMonth(),1);
   selDay=new Date(ds1);
-  goTo('cal');
+
+  // Vai al calendario dopo un breve momento
+  setTimeout(function(){ goTo('cal'); }, 1400);
 }
 
 /* ══════════════════════════════
