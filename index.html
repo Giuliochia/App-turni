@@ -548,6 +548,7 @@ async function onLogin(user){
     currentProfile = {id:user.id, full_name:name, email:user.email, role:role};
   }
   await loadData();
+  quickLoad();
   showApp();
   subscribeRealtime();
   checkReminder();
@@ -770,91 +771,84 @@ async function delShift(id){
 /* ══════════════════════════════
    UTILIZZO RAPIDO
 ══════════════════════════════ */
-var QUICK_KEY = 'shiftcare_quick';
 var MAX_QUICK = 8;
+var quickList = []; // array in memoria, fonte di verità
 
-function loadQuickTemplates(){
-  try{ return JSON.parse(localStorage.getItem(QUICK_KEY)||'[]'); }
-  catch(e){ return []; }
+function quickLoad(){
+  // Prova a caricare dal localStorage all'avvio
+  try{
+    var saved = localStorage.getItem('sc_quick');
+    if(saved) quickList = JSON.parse(saved);
+  } catch(e){ quickList = []; }
 }
 
-function saveQuickTemplates(list){
-  try{ localStorage.setItem(QUICK_KEY, JSON.stringify(list)); }
-  catch(e){}
+function quickSave(){
+  try{ localStorage.setItem('sc_quick', JSON.stringify(quickList)); }
+  catch(e){} // se localStorage non disponibile, rimane solo in memoria
 }
 
 function addToQuick(sig, ts, te, ci, dayType){
-  // Non salvare riposo/ferie/malattia come rapidi
   if(dayType !== 'turno') return;
-  var list = loadQuickTemplates();
-  // Evita duplicati (stessa sigla + stessi orari)
-  var exists = false;
-  for(var i=0;i<list.length;i++){
-    if(list[i].sig===sig && list[i].ts===ts && list[i].te===te){ exists=true; break; }
+  // Evita duplicati
+  for(var i=0;i<quickList.length;i++){
+    if(quickList[i].sig===sig && quickList[i].ts===ts && quickList[i].te===te) return;
   }
-  if(exists) return;
-  // Aggiungi in cima
-  list.unshift({sig:sig, ts:ts, te:te, ci:ci});
-  // Tieni solo MAX_QUICK
-  if(list.length > MAX_QUICK) list = list.slice(0, MAX_QUICK);
-  saveQuickTemplates(list);
-}
-
-function removeQuick(idx){
-  var list = loadQuickTemplates();
-  list.splice(idx, 1);
-  saveQuickTemplates(list);
+  quickList.unshift({sig:sig, ts:ts, te:te, ci:ci});
+  if(quickList.length > MAX_QUICK) quickList = quickList.slice(0, MAX_QUICK);
+  quickSave();
   renderQuickTemplates();
 }
 
-function applyQuick(sig, ts, te, ci){
-  // Imposta tipo turno
+function removeQuick(idx){
+  quickList.splice(idx, 1);
+  quickSave();
+  renderQuickTemplates();
+}
+
+function applyQuick(idx){
+  var q = quickList[idx];
+  if(!q) return;
   DAY_TYPE = 'turno';
   var dtbtns = document.querySelectorAll('.dtype-btn');
   for(var i=0;i<dtbtns.length;i++) dtbtns[i].classList.remove('on');
   if(dtbtns[0]) dtbtns[0].classList.add('on');
   document.getElementById('orario-card').style.display = 'block';
-
-  // Compila i campi
-  document.getElementById('f-sigla').value = sig;
-  document.getElementById('f-ts').value = ts;
-  document.getElementById('f-te').value = te;
-  pickCI = ci;
+  document.getElementById('f-sigla').value = q.sig;
+  document.getElementById('f-ts').value = q.ts;
+  document.getElementById('f-te').value = q.te;
+  pickCI = q.ci !== undefined ? q.ci : 0;
   var dots = document.querySelectorAll('.cdot');
   for(var i=0;i<dots.length;i++) dots[i].classList.remove('sel');
-  if(dots[ci]) dots[ci].classList.add('sel');
-
-  // Pulisci preset orari
+  if(dots[pickCI]) dots[pickCI].classList.add('sel');
   var pbtns = document.querySelectorAll('.pbtn');
   for(var i=0;i<pbtns.length;i++) pbtns[i].classList.remove('on');
-
   updSiglaBox(); updDurChip(); updPreview();
-  showToast('Turno applicato ✓', 'ok');
+  showToast(q.sig+' applicato ✓', 'ok');
 }
 
 function renderQuickTemplates(){
-  var list = loadQuickTemplates();
   var wrap = document.getElementById('quick-wrap');
-  if(!list.length){
-    wrap.innerHTML = '<div class="quick-empty">Nessun turno salvato ancora.<br>Crea il primo e apparirà qui!</div>';
+  if(!wrap) return;
+  if(!quickList.length){
+    wrap.innerHTML = '<div class="quick-empty">Nessun turno rapido ancora.<br>Crea il primo turno e apparirà qui!</div>';
     return;
   }
   var html = '';
-  for(var i=0;i<list.length;i++){
-    var q = list[i];
+  for(var i=0;i<quickList.length;i++){
+    var q = quickList[i];
     var col = PALETTE[q.ci !== undefined ? q.ci : 0];
-    var timeStr = q.ts + '–' + q.te;
-    html += '<div class="qbtn" onclick="applyQuick(\''+q.sig+'\',\''+q.ts+'\',\''+q.te+'\','+q.ci+')">'
+    html += '<div class="qbtn" onclick="applyQuick('+i+')">'
       + '<div class="qbtn-sig" style="background:'+col+'22;color:'+col+'">'+q.sig+'</div>'
       + '<div class="qbtn-info">'
       +   '<div class="qbtn-name">'+q.sig+'</div>'
-      +   '<div class="qbtn-time">'+timeStr+'</div>'
+      +   '<div class="qbtn-time">'+q.ts+'–'+q.te+'</div>'
       + '</div>'
       + '<button class="qbtn-del" onclick="event.stopPropagation();removeQuick('+i+')">×</button>'
       + '</div>';
   }
   wrap.innerHTML = html;
 }
+
 var DAY_TYPE = 'turno';
 var DAY_TYPE_MAP = {
   'turno':    {sig:'',    col:0,  icon:'🏥', label:'Turno',    hasTime:true},
